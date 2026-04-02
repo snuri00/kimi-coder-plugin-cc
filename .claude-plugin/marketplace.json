@@ -1,0 +1,21 @@
+{
+  "name": "kimi-coder-plugin-cc",
+  "owner": {
+    "name": "snuri00"
+  },
+  "metadata": {
+    "description": "Kimi Code CLI plugin for Claude Code - use Kimi as a coding sub-agent.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "kimi-coder",
+      "description": "Use Kimi Code from Claude Code to delegate coding tasks.",
+      "version": "1.0.0",
+      "author": {
+        "name": "snuri00"
+      },
+      "source": "./plugins/kimi-coder"
+    }
+  ]
+}
