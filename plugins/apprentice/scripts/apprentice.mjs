@@ -12,6 +12,7 @@ import {
   DEFAULT_ENDPOINT,
   getEndpointAvailability,
   getModelAvailable,
+  listAvailableModels,
   runApprenticeTask
 } from "./lib/llm.mjs";
 import { binaryAvailable, terminateProcessTree } from "./lib/process.mjs";
@@ -324,10 +325,36 @@ async function handleTask(argv) {
 
   const cwd = resolveCommandCwd(options);
   const workspaceRoot = resolveCommandWorkspace(options);
-  const model = resolveModel(options, cwd);
   const endpoint = resolveEndpoint(options, cwd);
   const apiKey = options["api-key"] || process.env.OPENAI_API_KEY || null;
   const maxSteps = options["max-steps"] ? Number(options["max-steps"]) : null;
+
+  let model = resolveModel(options, cwd);
+  if (!model) {
+    const listing = await listAvailableModels(endpoint, apiKey);
+    if (!listing.ok) {
+      throw new Error(
+        `No model configured and endpoint check failed: ${listing.detail}.\n` +
+        "Pass --model <name>, set APPRENTICE_MODEL, or run:\n" +
+        "  /apprentice:config set model <name>"
+      );
+    }
+    if (listing.models.length === 0) {
+      throw new Error(
+        `No models available at ${endpoint}. Pull one first (e.g. \`ollama pull gemma4:26b\`).`
+      );
+    }
+    if (listing.models.length === 1) {
+      model = listing.models[0];
+      process.stderr.write(`[apprentice] auto-detected model: ${model}\n`);
+    } else {
+      throw new Error(
+        `No model specified and multiple are available. Pick one:\n  - ` +
+        listing.models.join("\n  - ") +
+        "\n\nPass --model <name> or run:\n  /apprentice:config set model <name>"
+      );
+    }
+  }
 
   let systemPrompt = null;
   if (options["system-prompt-file"]) {
@@ -343,12 +370,6 @@ async function handleTask(argv) {
 
   if (!prompt) {
     throw new Error("Provide a prompt, --prompt-file, or piped stdin.");
-  }
-  if (!model) {
-    throw new Error(
-      "No model configured. Pass --model <name>, set APPRENTICE_MODEL, or run:\n" +
-      "  /apprentice:config set model <name>"
-    );
   }
 
   const title = "Apprentice Task";

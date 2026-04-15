@@ -73,6 +73,24 @@ export async function getEndpointAvailability(endpoint = DEFAULT_ENDPOINT) {
   }
 }
 
+export async function listAvailableModels(endpoint = DEFAULT_ENDPOINT, apiKey = null) {
+  try {
+    const res = await fetch(`${endpoint}/models`, {
+      headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : {},
+      signal: AbortSignal.timeout(3000)
+    });
+    if (!res.ok) return { ok: false, models: [], detail: `HTTP ${res.status} from ${endpoint}/models` };
+    const data = await res.json();
+    const raw = data?.data ?? data?.models ?? [];
+    const models = raw
+      .map((entry) => (typeof entry === "string" ? entry : entry.id ?? entry.name ?? ""))
+      .filter(Boolean);
+    return { ok: true, models, detail: `${models.length} model(s) available` };
+  } catch (err) {
+    return { ok: false, models: [], detail: err?.message ?? String(err) };
+  }
+}
+
 export async function getModelAvailable(endpoint = DEFAULT_ENDPOINT, model = null) {
   if (!model) {
     return { available: false, loaded: false, detail: "no model specified (pass --model or set APPRENTICE_MODEL)" };
