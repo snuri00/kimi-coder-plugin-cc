@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
+import { unifiedLineDiff } from "./diff.mjs";
 import { runCommand } from "./process.mjs";
 
 const MAX_TOOL_OUTPUT = 50_000;
@@ -228,20 +229,31 @@ const handlers = {
     }
 
     let existed = false;
+    let previousContent = "";
     try {
-      await fs.access(target);
+      previousContent = await fs.readFile(target, "utf8");
       existed = true;
     } catch {}
 
+    const newContent = args.content ?? "";
+
     await fs.mkdir(path.dirname(target), { recursive: true });
-    await fs.writeFile(target, args.content ?? "", "utf8");
+    await fs.writeFile(target, newContent, "utf8");
 
     const stat = await fs.stat(target);
     recordFileSignature(ctx.readFiles, target, stat);
     ctx.touchedFiles.add(target);
 
-    const verb = existed ? "Overwrote" : "Wrote";
-    return { content: `${verb} ${target}`, error: null };
+    if (!existed) {
+      const lineCount = newContent ? newContent.split("\n").length : 0;
+      return { content: `Wrote ${target} (${lineCount} lines, new file)`, error: null };
+    }
+
+    // Overwrite of existing file — attach a diff so both the apprentice and
+    // the senior reviewer can see what actually changed.
+    const diff = unifiedLineDiff(previousContent, newContent, { contextLines: 2, maxLines: 30 });
+    const header = `Overwrote ${target}`;
+    return { content: diff ? `${header}\n${diff}` : `${header} (content unchanged)`, error: null };
   },
 
   async Edit(args, ctx) {

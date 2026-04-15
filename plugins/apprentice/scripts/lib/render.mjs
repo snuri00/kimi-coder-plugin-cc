@@ -1,3 +1,5 @@
+import { formatStrReplace } from "./diff.mjs";
+
 function shorten(text, limit = 96) {
   const normalized = String(text ?? "").trim().replace(/\s+/g, " ");
   if (!normalized) return "";
@@ -86,6 +88,13 @@ export function renderTaskResult(result, options = {}) {
       if (step.toolCall) {
         const preview = extractToolPreviewForRender(step.toolCall);
         lines.push(`${n}. [${step.toolCall.name}] ${preview}`);
+
+        const detail = formatStepDetail(step);
+        if (detail) {
+          lines.push("```diff");
+          lines.push(detail);
+          lines.push("```");
+        }
       }
     }
     lines.push("");
@@ -122,6 +131,36 @@ export function renderTaskResult(result, options = {}) {
   }
 
   return lines.join("\n");
+}
+
+function formatStepDetail(step) {
+  const tc = step.toolCall;
+  if (!tc) return null;
+
+  if (tc.name === "Edit") {
+    try {
+      const args = typeof tc.arguments === "string" ? JSON.parse(tc.arguments) : tc.arguments ?? {};
+      if (typeof args.old_string === "string" && typeof args.new_string === "string") {
+        return formatStrReplace(args.old_string, args.new_string, { maxLines: 40 });
+      }
+    } catch {
+      return null;
+    }
+  }
+
+  if (tc.name === "Write") {
+    const result = step.toolResult ?? "";
+    const parts = result.split("\n");
+    // Strip the leading "Wrote /path ..." / "Overwrote /path" header line; diff follows.
+    if (parts.length > 1 && /^(Wrote|Overwrote)\s/.test(parts[0])) {
+      const body = parts.slice(1).join("\n").trim();
+      if (!body) return null;
+      // Only show if it's an actual diff (starts with @@ or +/-)
+      if (/^(@@|\+|-)/m.test(body)) return body;
+    }
+  }
+
+  return null;
 }
 
 function extractToolPreviewForRender(tc) {

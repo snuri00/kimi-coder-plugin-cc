@@ -28,6 +28,13 @@ function shorten(text, limit = 96) {
   return `${normalized.slice(0, limit - 3)}...`;
 }
 
+// Length-cap without collapsing whitespace — preserves diff/code structure.
+function truncatePreservingStructure(text, limit = 2000) {
+  const str = String(text ?? "");
+  if (str.length <= limit) return str;
+  return `${str.slice(0, limit)}\n... [truncated ${str.length - limit} chars]`;
+}
+
 export function extractToolPreview(tc) {
   try {
     const args = typeof tc.arguments === "string" ? JSON.parse(tc.arguments) : tc.arguments ?? {};
@@ -348,7 +355,7 @@ export async function runApprenticeTask(options) {
         state.steps.push({
           think: currentThink,
           toolCall: { id: tc.id, name: tc.name, arguments: tc.arguments },
-          toolResult: shorten(result.content, 500)
+          toolResult: truncatePreservingStructure(result.content, 2500)
         });
         if (result.error) state.errors.push(`${tc.name}: ${result.error}`);
 
